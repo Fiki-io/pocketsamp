@@ -1,0 +1,41 @@
+<resources>
+    <string name="app_name">PocketSAMP</string>
+    <string name="title_dashboard">Dashboard PocketSAMP</string>
+    <string name="status_stopped">Berhenti</string>
+    <string name="status_starting">Memulai…</string>
+    <string name="status_running">Berjalan</string>
+    <string name="status_error">Terjadi Kesalahan</string>
+
+    <string name="card_system_title">Informasi Perangkat &amp; Jaringan</string>
+    <string name="label_ip_address">Alamat IP Lokal</string>
+    <string name="label_battery_temp">Suhu Baterai</string>
+    <string name="label_ram_usage">Konsumsi RAM</string>
+
+    <string name="card_database_title">Database MySQL &amp; phpMyAdmin</string>
+    <string name="desc_database">MariaDB lokal (Port 3306) &amp; Web phpMyAdmin (Port 8080)</string>
+    <string name="btn_start_db">Aktifkan MySQL</string>
+    <string name="btn_stop_db">Matikan MySQL</string>
+    <string name="btn_open_pma">Buka phpMyAdmin</string>
+
+    <string name="card_server_title">Server SA-MP</string>
+    <string name="desc_server">Binary Linux x86 (Port 7777 UDP)</string>
+    <string name="label_server_folder">Direktori Server</string>
+    <string name="btn_select_folder">Pilih Folder Server</string>
+    <string name="btn_start_server">Jalankan Server</string>
+    <string name="btn_stop_server">Hentikan Server</string>
+    <string name="folder_not_selected">Folder server belum dipilih</string>
+
+    <string name="card_log_title">Log Server Realtime</string>
+    <string name="btn_clear_log">Bersihkan Log</string>
+    <string name="log_empty">Belum ada output log server.</string>
+
+    <string name="notification_channel_name">PocketSAMP Service</string>
+    <string name="notification_channel_desc">Notifikasi status runner server dan database</string>
+    <string name="notification_title">PocketSAMP sedang berjalan</string>
+    <string name="notification_content">Server dan database aktif di background</string>
+
+    <string name="error_extract_assets">Gagal mengekstrak aset runtime: %s</string>
+    <string name="error_start_mysql">Gagal menjalankan MySQL: %s</string>
+    <string name="error_start_server">Gagal menjalankan server: %s</string>
+    <string name="error_server_cfg_missing">File server.cfg tidak ditemukan di folder yang dipilih</string>
+</resources>
