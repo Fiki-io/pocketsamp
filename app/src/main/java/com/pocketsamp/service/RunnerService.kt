@@ -15,6 +15,11 @@ import com.pocketsamp.PocketSampApp
 import com.pocketsamp.R
 import com.pocketsamp.data.repository.AssetManagerHelper
 import com.pocketsamp.data.repository.ProcessManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class RunnerService : Service() {
 
@@ -22,6 +27,7 @@ class RunnerService : Service() {
     lateinit var processManager: ProcessManager
         private set
 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
 
@@ -35,7 +41,7 @@ class RunnerService : Service() {
         processManager = ProcessManager(assetHelper)
         acquireLocks()
 
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).kotlinx.coroutines.launch {
+        serviceScope.launch {
             assetHelper.extractAssetsIfNeeded { processManager.emitLog(it) }
         }
     }
@@ -57,6 +63,7 @@ class RunnerService : Service() {
         processManager.stopServer()
         processManager.stopDatabase()
         releaseLocks()
+        serviceScope.cancel()
         super.onDestroy()
     }
 
