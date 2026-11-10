@@ -177,7 +177,18 @@ class AssetManagerHelper(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // 4. Extract Native Stack according to ABI
+        // 4. Extract Pre-initialized MariaDB System Data
+        try {
+            val mysqlDb = File(mariadbDataDir, "mysql")
+            if (!mysqlDb.exists()) {
+                onProgress("Mengekstrak database sistem MariaDB...")
+                assetManager.open("mariadb_data.tar.gz").use { input ->
+                    extractTarGz(input, mariadbDir)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 5. Extract Native Stack according to ABI
         val nativeArchive = if (is64Bit) "native_arm64.tar.gz" else "native_armhf.tar.gz"
         val archSubdir = if (is64Bit) "arm64" else "armhf"
         try {

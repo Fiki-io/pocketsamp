@@ -36,27 +36,6 @@ class ProcessManager(private val assetHelper: AssetManagerHelper) {
             assetHelper.generateConfigurations()
             assetHelper.makeExecutables()
 
-            // Initialize MariaDB system tables if needed
-            if (!assetHelper.isDatabaseInitialized()) {
-                emitLog("[Database] Menginisialisasi sistem tabel MariaDB pertama kali...")
-                val installDbBin = File(assetHelper.nativeBinDir, "mariadb-install-db")
-                val pbInstall = ProcessBuilder(
-                    installDbBin.absolutePath,
-                    "--defaults-file=${assetHelper.myCnfFile.absolutePath}",
-                    "--datadir=${assetHelper.mariadbDataDir.absolutePath}",
-                    "--basedir=${assetHelper.nativeDir.absolutePath}"
-                )
-                pbInstall.environment()["LD_LIBRARY_PATH"] = assetHelper.nativeLibDir.absolutePath
-                pbInstall.environment()["TMPDIR"] = assetHelper.mariadbTmpDir.absolutePath
-                val proc = pbInstall.start()
-                val exitCode = proc.waitFor()
-                if (exitCode != 0) {
-                    val err = proc.errorStream.bufferedReader().readText()
-                    throw RuntimeException("Gagal inisialisasi database (code $exitCode): $err")
-                }
-                emitLog("[Database] Inisialisasi sistem tabel selesai.")
-            }
-
             // Start MariaDB Daemon
             val mariadbdBin = File(assetHelper.nativeBinDir, "mariadbd")
             val pbMaria = ProcessBuilder(
@@ -178,32 +157,36 @@ class ProcessManager(private val assetHelper: AssetManagerHelper) {
     }
 
     private fun ensureOptimalSleepConfig(cfgFile: File) {
-        val lines = cfgFile.readLines().toMutableList()
-        var foundSleep = false
-        var modified = false
+        try {
+            val lines = cfgFile.readLines().toMutableList()
+            var foundSleep = false
+            var modified = false
 
-        for (i in lines.indices) {
-            val trimmed = lines[i].trim()
-            if (trimmed.startsWith("sleep")) {
-                foundSleep = true
-                val parts = trimmed.split(Regex("\\s+"))
-                val sleepVal = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                if (sleepVal <= 0) {
-                    lines[i] = "sleep 5"
-                    modified = true
+            for (i in lines.indices) {
+                val trimmed = lines[i].trim()
+                if (trimmed.startsWith("sleep")) {
+                    foundSleep = true
+                    val parts = trimmed.split(Regex("\\s+"))
+                    val sleepVal = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                    if (sleepVal <= 0) {
+                        lines[i] = "sleep 5"
+                        modified = true
+                    }
+                    break
                 }
-                break
             }
-        }
 
-        if (!foundSleep) {
-            lines.add("sleep 5")
-            modified = true
-        }
+            if (!foundSleep) {
+                lines.add("sleep 5")
+                modified = true
+            }
 
-        if (modified) {
-            cfgFile.writeText(lines.joinToString("\n") + "\n")
-            emitLog("[Config] Parameter 'sleep 5' diterapkan pada server.cfg untuk menjaga suhu HP tetap dingin.")
+            if (modified) {
+                cfgFile.writeText(lines.joinToString("\n") + "\n")
+                emitLog("[Config] Parameter 'sleep 5' diterapkan pada server.cfg untuk menjaga suhu HP tetap dingin.")
+            }
+        } catch (e: Exception) {
+            emitLog("[Config Warning] Tidak dapat memperbarui server.cfg: ${e.message}")
         }
     }
 

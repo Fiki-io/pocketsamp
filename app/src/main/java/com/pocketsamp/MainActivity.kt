@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.IBinder
 import android.provider.DocumentsContract
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,13 +51,19 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
         }
 
+    private val requestLegacyStoragePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+        }
+
     private val openDocumentTreeLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
             uri?.let {
-                contentResolver.takePersistableUriPermission(
-                    it,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        it,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
                 val path = resolveRealPath(it)
                 if (path != null) {
                     viewModel.setServerDirectory(path)
@@ -68,6 +75,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         checkNotificationPermission()
+        checkAndRequestStoragePermission()
         startAndBindService()
         viewModel.startHardwareMonitoring(this)
 
@@ -81,11 +89,15 @@ class MainActivity : ComponentActivity() {
                         viewModel.toggleDatabase()
                     },
                     onToggleServer = {
-                        startServiceIntent()
-                        viewModel.toggleServer()
+                        if (checkAndRequestStoragePermission()) {
+                            startServiceIntent()
+                            viewModel.toggleServer()
+                        }
                     },
                     onSelectFolder = {
-                        openDocumentTreeLauncher.launch(null)
+                        if (checkAndRequestStoragePermission()) {
+                            openDocumentTreeLauncher.launch(null)
+                        }
                     },
                     onClearLogs = {
                         viewModel.clearLogs()
@@ -93,6 +105,36 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun checkAndRequestStoragePermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    startActivity(intent)
+                }
+                return false
+            }
+        } else {
+            val readPerm = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+            val writePerm = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            if (readPerm != PackageManager.PERMISSION_GRANTED || writePerm != PackageManager.PERMISSION_GRANTED) {
+                requestLegacyStoragePermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    )
+                )
+                return false
+            }
+        }
+        return true
     }
 
     private fun startServiceIntent() {
