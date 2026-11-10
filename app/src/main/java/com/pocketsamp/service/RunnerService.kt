@@ -34,6 +34,10 @@ class RunnerService : Service() {
         val assetHelper = AssetManagerHelper(this)
         processManager = ProcessManager(assetHelper)
         acquireLocks()
+
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).kotlinx.coroutines.launch {
+            assetHelper.extractAssetsIfNeeded { processManager.emitLog(it) }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

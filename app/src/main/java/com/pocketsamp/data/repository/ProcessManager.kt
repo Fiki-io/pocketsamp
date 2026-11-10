@@ -38,6 +38,11 @@ class ProcessManager(private val assetHelper: AssetManagerHelper) {
 
             // Start MariaDB Daemon
             val mariadbdBin = File(assetHelper.nativeBinDir, "mariadbd")
+            if (!mariadbdBin.exists()) {
+                throw IllegalStateException("Binary mariadbd tidak ditemukan di ${mariadbdBin.absolutePath}")
+            }
+            mariadbdBin.setExecutable(true, false)
+
             val pbMaria = ProcessBuilder(
                 mariadbdBin.absolutePath,
                 "--defaults-file=${assetHelper.myCnfFile.absolutePath}"
@@ -112,15 +117,26 @@ class ProcessManager(private val assetHelper: AssetManagerHelper) {
 
             val boxBin = assetHelper.getBoxBinary()
             if (!boxBin.exists()) {
-                throw IllegalStateException("Binary translator ${boxBin.name} tidak ditemukan.")
+                throw IllegalStateException("Binary translator ${boxBin.name} tidak ditemukan di ${boxBin.absolutePath}")
             }
             boxBin.setExecutable(true, false)
 
-            emitLog("[Server] Menjalankan ${boxBin.name} ./samp03svr...")
-            val pb = ProcessBuilder(
-                boxBin.absolutePath,
-                "./samp03svr"
-            )
+            val ldLinux = assetHelper.getLdLinuxBinary()
+            val command = if (ldLinux != null && ldLinux.exists()) {
+                ldLinux.setExecutable(true, false)
+                listOf(
+                    ldLinux.absolutePath,
+                    "--library-path",
+                    ldLinux.parentFile.absolutePath,
+                    boxBin.absolutePath,
+                    "./samp03svr"
+                )
+            } else {
+                listOf(boxBin.absolutePath, "./samp03svr")
+            }
+
+            emitLog("[Server] Menjalankan: ${command.joinToString(" ")}")
+            val pb = ProcessBuilder(command)
             pb.directory(serverDir)
             val env = pb.environment()
             env["BOX86_LD_LIBRARY_PATH"] = "${assetHelper.sysrootDir.absolutePath}:./plugins:."

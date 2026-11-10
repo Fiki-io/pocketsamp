@@ -44,6 +44,15 @@ class AssetManagerHelper(private val context: Context) {
         }
     }
 
+    fun getLdLinuxBinary(): File? {
+        val f = if (is64Bit) {
+            File(boxRunnerDir, "glibc_arm64/ld-linux-aarch64.so.1")
+        } else {
+            File(boxRunnerDir, "glibc_armhf/ld-linux-armhf.so.3")
+        }
+        return if (f.exists()) f else null
+    }
+
     fun ensureDirectories() {
         nativeBinDir.mkdirs()
         nativeLibDir.mkdirs()
@@ -142,24 +151,30 @@ class AssetManagerHelper(private val context: Context) {
     fun makeExecutables() {
         nativeBinDir.listFiles()?.forEach { it.setExecutable(true, false) }
         boxRunnerDir.listFiles()?.forEach { it.setExecutable(true, false) }
+        getLdLinuxBinary()?.setExecutable(true, false)
     }
 
     fun extractAssetsIfNeeded(onProgress: (String) -> Unit = {}) {
-        val marker = File(filesDir, ".installed_v1")
-        if (marker.exists()) {
+        val marker = File(filesDir, ".installed_v3")
+        val mariadbdBin = File(nativeBinDir, "mariadbd")
+        val boxBin = getBoxBinary()
+
+        if (marker.exists() && mariadbdBin.exists() && boxBin.exists()) {
             return
         }
 
         ensureDirectories()
         val assetManager = context.assets
 
-        // 1. Extract Box Runner
+        // 1. Extract Box Runner (box64, box86, glibc_arm64, glibc_armhf directly into boxRunnerDir)
         try {
             onProgress("Mengekstrak Box Runner translator...")
             assetManager.open("box_runner.tar.gz").use { input ->
-                extractTarGz(input, filesDir)
+                extractTarGz(input, boxRunnerDir)
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            onProgress("Gagal mengekstrak Box Runner: ${e.message}")
+        }
 
         // 2. Extract Sysroot i386
         try {
@@ -167,7 +182,9 @@ class AssetManagerHelper(private val context: Context) {
             assetManager.open("sysroot_i386.tar.gz").use { input ->
                 extractTarGz(input, filesDir)
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            onProgress("Gagal mengekstrak sysroot: ${e.message}")
+        }
 
         // 3. Extract Web Stack (Lighttpd & phpMyAdmin)
         try {
@@ -175,7 +192,9 @@ class AssetManagerHelper(private val context: Context) {
             assetManager.open("web_stack.tar.gz").use { input ->
                 extractTarGz(input, filesDir)
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            onProgress("Gagal mengekstrak web stack: ${e.message}")
+        }
 
         // 4. Extract Pre-initialized MariaDB System Data
         try {
@@ -186,39 +205,25 @@ class AssetManagerHelper(private val context: Context) {
                     extractTarGz(input, mariadbDir)
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            onProgress("Gagal mengekstrak database sistem: ${e.message}")
+        }
 
-        // 5. Extract Native Stack according to ABI
+        // 5. Extract Native Stack according to ABI directly into nativeDir
         val nativeArchive = if (is64Bit) "native_arm64.tar.gz" else "native_armhf.tar.gz"
         val archSubdir = if (is64Bit) "arm64" else "armhf"
         try {
             onProgress("Mengekstrak native binary ($archSubdir)...")
             assetManager.open(nativeArchive).use { input ->
-                extractTarGz(input, filesDir)
+                extractTarGz(input, nativeDir)
             }
-
-            // Move native_stack/{arch} contents to native/
-            val extractedNative = File(filesDir, "native_stack/$archSubdir")
-            if (extractedNative.exists()) {
-                val binSrc = File(extractedNative, "bin")
-                if (binSrc.exists()) {
-                    binSrc.listFiles()?.forEach { it.copyTo(File(nativeBinDir, it.name), overwrite = true) }
-                }
-                val libSrc = File(extractedNative, "lib")
-                if (libSrc.exists()) {
-                    libSrc.listFiles()?.forEach { it.copyTo(File(nativeLibDir, it.name), overwrite = true) }
-                }
-                val shareSrc = File(extractedNative, "share")
-                if (shareSrc.exists()) {
-                    shareSrc.copyRecursively(nativeShareDir, overwrite = true)
-                }
-                File(filesDir, "native_stack").deleteRecursively()
-            }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            onProgress("Gagal mengekstrak native binary: ${e.message}")
+        }
 
         generateConfigurations()
         makeExecutables()
-        marker.writeText("installed")
+        marker.writeText("installed_v3")
         onProgress("Ekstraksi aset selesai.")
     }
 
@@ -243,7 +248,7 @@ class AssetManagerHelper(private val context: Context) {
                         FileOutputStream(outputFile).use { out ->
                             tarIn.copyTo(out)
                         }
-                        if (entry.mode and 0b001000000 != 0) {
+                        if ((entry.mode and 0b001000000 != 0) || outputFile.parentFile?.name == "bin") {
                             outputFile.setExecutable(true, false)
                         }
                     }
